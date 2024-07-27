@@ -51,13 +51,17 @@ int gen1_entropy(char ** addr, size_t size) {
 }
 
 // TODO: Benchmark this...
-void gen2_entropy(char ** addr, size_t size) {
+int gen2_entropy(char ** addr, size_t size) {
 	char * n_addr = 0x0;
 
-	n_addr = mmap(0, size, PROT_READ, MAP_ANON, -1, 0);
+	n_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+	if (n_addr == (void *)(-1)) {
+		return errno;
+	}
 	getentropy(n_addr, size);
 
 	(*addr) = n_addr;
+	return 0;
 }
 
 int otpc_encrypt(const char * message_path, const char * key_path, const char * ciphertext_path) {
