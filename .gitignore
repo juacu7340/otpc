@@ -4,3 +4,9 @@
 # Executable files
 *.exe
 
+# .dat files
+*.dat
+
+# .txt files
+*.txt
+
