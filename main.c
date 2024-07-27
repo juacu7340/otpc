@@ -5,9 +5,24 @@
 
 #include <stdio.h>
 
+void out(char * data, size_t size) {
+	FILE *file = fopen("dump.dat", "wb"); // Open the file for writing in binary mode
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    size_t written = fwrite(data, sizeof(char), size, file); // Write the buffer to the file
+    if (written != size) {
+        perror("Error writing to file");
+    }
+
+    fclose(file); // Close the file
+}
+
 int main() {
 	char * abc = 0x0;
-	size_t size = 5;
+	size_t size = 10;
 
 	int result = gen1_entropy(&abc, size);
 
@@ -15,12 +30,9 @@ int main() {
 
 	assert(abc != 0x0);
 
-	for (size_t idx = 0; idx < size; ++idx) {
-		printf("%d\n", abc[idx]);
-	}
+	out(abc, size);
 
-
-	munmap(abc, 256);
+	munmap(abc, size);
 
 	return 0;
 }
