@@ -12,32 +12,12 @@
 
 #include <stdarg.h>
 
-// Checks if the given arguments are not null
-// Returns 0 if at least one argument is null, 1 otherwise
-int check_null(size_t argc, ...) {
-	va_list args;
-	va_start(args, argc);
-
-	int result = 1;
-	int idx = 0;
-
-	while (idx < argc) {
-		void * ptr = va_arg(args, void *);
-		if (ptr == 0) {
-			result = 0;
-			break;
-		}
-		idx = idx + 1;
-	}
-
-	va_end(args);
-	return result;
-}
+#include <assert.h>
 
 
 // Points addr to a buffer initialized with random generated data
 // uses system-specific entropy to seed pseudo-number generator
-int gen1_entropy(char ** addr, size_t size) {
+int gen1_entropy(char ** addr, const size_t size) {
 	char * n_addr = 0x0;
 
 	n_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
@@ -51,23 +31,26 @@ int gen1_entropy(char ** addr, size_t size) {
 }
 
 // TODO: Benchmark this...
-int gen2_entropy(char ** addr, size_t size) {
+int gen2_entropy(char ** addr, const size_t size) {
 	char * n_addr = 0x0;
+	assert(size <= 256);
 
 	n_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 	if (n_addr == (void *)(-1)) {
 		return errno;
 	}
-	getentropy(n_addr, size);
+	getentropy(n_addr, size); // 256 size limit (read docs)
 
 	(*addr) = n_addr;
 	return 0;
 }
 
-int otpc_encrypt(const char * message_path, const char * key_path, const char * ciphertext_path) {
-	if (check_null(message_path, key_path, ciphertext_path) == 0) {
-		return -1;
-	}
+int otpc_encrypt(const char * message_path, const char * key_path, const char * ciphertext_path,
+	int (*entropy_fn)(char **, const size_t)) {
+
+	//if (check_null(4, message_path, key_path, ciphertext_path, entropy_fn) == 0) {
+	//	return -1;
+	//}
 
 	// TODO: measure performance difference between fopen() built-in buffered IO
 	// versus open() non-buffered IO
@@ -140,4 +123,26 @@ encrypt_return:
 
 int otpc_decrypt(/**/) {
 	return 0;
+}
+
+// Checks if the given arguments are not null
+// Returns 0 if at least one argument is null, 1 otherwise
+int check_null(size_t argc, ...) {
+	va_list args;
+	va_start(args, argc);
+
+	int result = 1;
+	int idx = 0;
+
+	while (idx < argc) {
+		void * ptr = va_arg(args, void *);
+		if (ptr == 0) {
+			result = 0;
+			break;
+		}
+		idx = idx + 1;
+	}
+
+	va_end(args);
+	return result;
 }
