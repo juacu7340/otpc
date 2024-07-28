@@ -9,6 +9,7 @@ extern int otpc_encrypt(const char * message_path, const char * key_path, const 
     int (*entropy)(char **, const size_t));
 extern int otpc_decrypt(/**/);
 
+extern int neon_encrypt(void *, void *, void *, size_t);
 //
 #endif
 

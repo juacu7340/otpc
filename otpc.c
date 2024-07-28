@@ -1,19 +1,59 @@
 #include "otpc.h"
 
+#include <stdlib.h> // arc4random family
+#include <stdarg.h>
+#include <unistd.h>
+
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-#include <stdlib.h> // arc4random family
 #include <sys/random.h> // getentropy family
-
 #include <sys/errno.h>
 
-#include <stdarg.h>
-
+#include <fcntl.h>
 #include <assert.h>
 
+#include <arm_neon.h>
+
+
+// Warining: message_buf & key_buf must be 16 
+// Size of SIMD register for ARM-M1 cpu is 128 bits
+int neon_encrypt(void * message_buf, void * key_buf, void * ciphertext_buf, size_t nbytes) {
+	size_t idx = 0;
+	
+	while (idx < nbytes) {
+		int8x16_t nth_chunk128_message = vld1q_s8((int8_t *) &message_buf[idx]);
+		int8x16_t nth_chunk128_key = vld1q_s8((int8_t *) &key_buf[idx]);
+
+		// Debu:
+		nth_chunk128_message = vsubq_s8(nth_chunk128_message, vdupq_n_s8(0x41));
+		
+		int8x16_t nth_chunk128_ciphertext = vaddq_s8(nth_chunk128_message, nth_chunk128_key);
+
+		int8_t * m_ptr = (int8_t *)(&nth_chunk128_ciphertext);
+
+		m_ptr[0x0] = m_ptr[0x0] % 26;
+		m_ptr[0x1] = m_ptr[0x1] % 26;
+		m_ptr[0x2] = m_ptr[0x2] % 26;
+		m_ptr[0x3] = m_ptr[0x3] % 26;
+		m_ptr[0x4] = m_ptr[0x4] % 26;
+		m_ptr[0x5] = m_ptr[0x5] % 26;
+		m_ptr[0x6] = m_ptr[0x6] % 26;
+		m_ptr[0x7] = m_ptr[0x7] % 26;
+		m_ptr[0x8] = m_ptr[0x8] % 26;
+		m_ptr[0x9] = m_ptr[0x9] % 26;
+		m_ptr[0xA] = m_ptr[0xA] % 26;
+		m_ptr[0xB] = m_ptr[0xB] % 26;
+		m_ptr[0xC] = m_ptr[0xC] % 26;
+		m_ptr[0xD] = m_ptr[0xD] % 26;
+		m_ptr[0xE] = m_ptr[0xE] % 26;
+		m_ptr[0xF] = m_ptr[0xF] % 26;
+
+		vst1q_s8((int8_t*)&ciphertext_buf[idx], nth_chunk128_ciphertext);
+		idx += 16;
+	}
+
+	return 0;
+}
 
 // Points addr to a buffer initialized with random generated data
 // uses system-specific entropy to seed pseudo-number generator
