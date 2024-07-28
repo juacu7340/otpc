@@ -24,31 +24,25 @@ int neon_encrypt(void * message_buf, void * key_buf, void * ciphertext_buf, size
 		int8x16_t nth_chunk128_message = vld1q_s8((int8_t *) &message_buf[idx]);
 		int8x16_t nth_chunk128_key = vld1q_s8((int8_t *) &key_buf[idx]);
 
-		// Debu:
-		nth_chunk128_message = vsubq_s8(nth_chunk128_message, vdupq_n_s8(0x41));
-		
-		int8x16_t nth_chunk128_ciphertext = vaddq_s8(nth_chunk128_message, nth_chunk128_key);
-
-		int8_t * m_ptr = (int8_t *)(&nth_chunk128_ciphertext);
-
-		m_ptr[0x0] = m_ptr[0x0] % 26;
-		m_ptr[0x1] = m_ptr[0x1] % 26;
-		m_ptr[0x2] = m_ptr[0x2] % 26;
-		m_ptr[0x3] = m_ptr[0x3] % 26;
-		m_ptr[0x4] = m_ptr[0x4] % 26;
-		m_ptr[0x5] = m_ptr[0x5] % 26;
-		m_ptr[0x6] = m_ptr[0x6] % 26;
-		m_ptr[0x7] = m_ptr[0x7] % 26;
-		m_ptr[0x8] = m_ptr[0x8] % 26;
-		m_ptr[0x9] = m_ptr[0x9] % 26;
-		m_ptr[0xA] = m_ptr[0xA] % 26;
-		m_ptr[0xB] = m_ptr[0xB] % 26;
-		m_ptr[0xC] = m_ptr[0xC] % 26;
-		m_ptr[0xD] = m_ptr[0xD] % 26;
-		m_ptr[0xE] = m_ptr[0xE] % 26;
-		m_ptr[0xF] = m_ptr[0xF] % 26;
+		int8x16_t nth_chunk128_ciphertext = veorq_s8(nth_chunk128_message, nth_chunk128_key);
 
 		vst1q_s8((int8_t*)&ciphertext_buf[idx], nth_chunk128_ciphertext);
+		idx += 16;
+	}
+
+	return 0;
+}
+
+int neon_decrypt(void * ciphertext_buf, void * key_buf, void * message_buf, size_t nbytes) {
+	size_t idx = 0;
+	
+	while (idx < nbytes) {
+		int8x16_t nth_chunk128_ciphertext = vld1q_s8((int8_t *) &ciphertext_buf[idx]);
+		int8x16_t nth_chunk128_key = vld1q_s8((int8_t *) &key_buf[idx]);
+
+		int8x16_t nth_chunk128_message = veorq_s8(nth_chunk128_ciphertext, nth_chunk128_key);
+
+		vst1q_s8((int8_t*)&message_buf[idx], nth_chunk128_message);
 		idx += 16;
 	}
 
@@ -64,6 +58,7 @@ int gen1_entropy(char ** addr, const size_t size) {
 	if (n_addr == (void *)(-1)) {
 		return errno;
 	}
+
 	arc4random_buf(n_addr, size);
 
 	(*addr) = n_addr;
@@ -71,15 +66,44 @@ int gen1_entropy(char ** addr, const size_t size) {
 }
 
 // TODO: Benchmark this...
-int gen2_entropy(char ** addr, const size_t size) {
-	char * n_addr = 0x0;
-	assert(size <= 256);
+// We are assuming nbytes % 16 = 0 for now
+int gen2_entropy(char ** addr, const size_t nbytes) {
+	void * n_addr = 0x0;
 
-	n_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+	n_addr = mmap(0, nbytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 	if (n_addr == (void *)(-1)) {
 		return errno;
 	}
-	getentropy(n_addr, size); // 256 size limit (read docs)
+
+	//size_t bytes = 0;
+	//while (bytes < nbytes) {
+	//	int8x16_t * current_chunk = &(n_addr[bytes]); 
+	//	int8x16_t nth_chunk128_addr = vld1q_s8(current_chunk);
+
+	//	getentropy(&nth_chunk128_addr, sizeof(int8x16_t));
+	//	int8_t * foo = (int8_t *)(&nth_chunk128_addr);
+
+	//	foo[0x0] = foo[0x0] % 26;
+	//	foo[0x1] = foo[0x1] % 26;
+	//	foo[0x2] = foo[0x2] % 26;
+	//	foo[0x3] = foo[0x3] % 26;
+	//	foo[0x4] = foo[0x4] % 26;
+	//	foo[0x5] = foo[0x5] % 26;
+	//	foo[0x6] = foo[0x6] % 26;
+	//	foo[0x7] = foo[0x7] % 26;
+	//	foo[0x8] = foo[0x8] % 26;
+	//	foo[0x9] = foo[0x9] % 26;
+	//	foo[0xA] = foo[0xA] % 26;
+	//	foo[0xB] = foo[0xB] % 26;
+	//	foo[0xC] = foo[0xC] % 26;
+	//	foo[0xD] = foo[0xD] % 26;
+	//	foo[0xE] = foo[0xE] % 26;
+	//	foo[0xF] = foo[0xF] % 26;
+
+	//	vst1q_s8(current_chunk, nth_chunk128_addr);
+
+	//	bytes += sizeof(int8x16_t); // 16 bytes since a SIMD register fits v128 (bits)
+	//}
 
 	(*addr) = n_addr;
 	return 0;

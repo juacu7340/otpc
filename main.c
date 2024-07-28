@@ -9,7 +9,7 @@
 #include "benchmark.h"
 
 
-#define NBYTES (1 * 16)
+#define NBYTES (10000000 * 16)
 
 void out(const char *, char *, size_t);
 
@@ -17,17 +17,16 @@ int main() {
 	const size_t size = NBYTES;
 
 	char * gen1_buffer = 0x0;
-	char message[NBYTES];
-	char ciphertext[NBYTES];
-
-	// payload A = 0x41
-	memset(message, 'A', NBYTES);
-	memset(ciphertext, 0, NBYTES);
+	char * message = 0x0;
+	char * ciphertext = 0x0;
 
 	double elapset_time_ms; int result;
 	TIMED_BLOCK(elapset_time_ms, {
 		result = gen1_entropy(&gen1_buffer, size);
 	});
+
+	result = gen1_entropy(&message, size);
+	result = gen1_entropy(&ciphertext, size);
 
 	printf("Elapsed time: %f ms\n", elapset_time_ms);
 
@@ -41,6 +40,8 @@ int main() {
 	out("message.dat", message, size);
 	out("ciphertext.dat", ciphertext, size);
 
+	neon_encrypt(ciphertext, gen1_buffer, message, size);
+	out("message_translated.dat", message, size);
 
 	munmap(gen1_buffer, size);
 
