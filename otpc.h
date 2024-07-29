@@ -10,6 +10,9 @@ extern int otpc_decrypt(/**/);
 
 extern int neon_encrypt(void *, void *, void *, size_t);
 extern int neon_decrypt(void *, void *, void *, size_t);
+
+int standard_encrypt(void *, void *, void *, size_t);
+int standard_decrypt(void *, void *, void *, size_t);
 //
 #endif
 

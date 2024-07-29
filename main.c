@@ -9,7 +9,7 @@
 #include "benchmark.h"
 
 
-#define NBYTES (1 * 16)
+#define NBYTES (10000000 * 16)
 
 void out(const char *, char *, size_t);
 
@@ -24,25 +24,50 @@ int main() {
 
 	char * gen1_buffer = 0x0;
 	char * message = 0x0;
+	char * message_translated = 0x0;
 	char * ciphertext = 0x0;
 
+	double elapset_time_ms; int result;
 
 	gen1_entropy(&gen1_buffer, size);
 	gen1_entropy(&message, size);
+	gen1_entropy(&message_translated, size);
 	gen1_entropy(&ciphertext, size);
 
-	neon_encrypt(message, gen1_buffer, ciphertext, size);
+#if defined (__aarch64__) && defined (__ARM_NEON)  
+		// Neon benchmark
+		TIMED_BLOCK(elapset_time_ms, {
+			neon_encrypt(message, gen1_buffer, ciphertext, size);
+		});
+		printf("(neon) encrypt: %f ms\n", elapset_time_ms);
+
+
+		TIMED_BLOCK(elapset_time_ms, {
+			neon_decrypt(ciphertext, gen1_buffer, message_translated, size);
+		});
+		printf("(neon) decrypt: %f ms\n", elapset_time_ms);
+#endif
+
+		// Standard benchmark
+		TIMED_BLOCK(elapset_time_ms, {
+			standard_encrypt(message, gen1_buffer, ciphertext, size);
+		});
+		printf("(stnd) encrypt: %f ms\n", elapset_time_ms);
+
+
+		TIMED_BLOCK(elapset_time_ms, {
+			standard_decrypt(ciphertext, gen1_buffer, message_translated, size);
+		});
+		printf("(stnd) decrypt: %f ms\n", elapset_time_ms);
 
 	out("key.dat", gen1_buffer, size);
 	out("message.dat", message, size);
 	out("ciphertext.dat", ciphertext, size);
-
-	neon_decrypt(ciphertext, gen1_buffer, message, size);
-
-	out("message_translated.dat", message, size);
+	out("message_translated.dat", message_translated, size);
 
 	munmap(gen1_buffer, size);
 	munmap(message, size);
+	munmap(message_translated, size);
 	munmap(ciphertext, size);
 
 	return 0;
