@@ -9,9 +9,15 @@
 #include "benchmark.h"
 
 
-#define NBYTES (10000000 * 16)
+#define NBYTES (1 * 16)
 
 void out(const char *, char *, size_t);
+
+	//double elapset_time_ms; int result;
+	//TIMED_BLOCK(elapset_time_ms, {
+	//	result = gen1_entropy(&gen1_buffer, size);
+	//});
+	//printf("Elapsed time: %f ms\n", elapset_time_ms);
 
 int main() {
 	const size_t size = NBYTES;
@@ -20,19 +26,10 @@ int main() {
 	char * message = 0x0;
 	char * ciphertext = 0x0;
 
-	double elapset_time_ms; int result;
-	TIMED_BLOCK(elapset_time_ms, {
-		result = gen1_entropy(&gen1_buffer, size);
-	});
 
-	result = gen1_entropy(&message, size);
-	result = gen1_entropy(&ciphertext, size);
-
-	printf("Elapsed time: %f ms\n", elapset_time_ms);
-
-	if (result != 0) return result;
-
-	assert(gen1_buffer != 0x0);
+	gen1_entropy(&gen1_buffer, size);
+	gen1_entropy(&message, size);
+	gen1_entropy(&ciphertext, size);
 
 	neon_encrypt(message, gen1_buffer, ciphertext, size);
 
@@ -40,10 +37,13 @@ int main() {
 	out("message.dat", message, size);
 	out("ciphertext.dat", ciphertext, size);
 
-	neon_encrypt(ciphertext, gen1_buffer, message, size);
+	neon_decrypt(ciphertext, gen1_buffer, message, size);
+
 	out("message_translated.dat", message, size);
 
 	munmap(gen1_buffer, size);
+	munmap(message, size);
+	munmap(ciphertext, size);
 
 	return 0;
 }

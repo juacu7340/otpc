@@ -49,6 +49,28 @@ int neon_decrypt(void * ciphertext_buf, void * key_buf, void * message_buf, size
 	return 0;
 }
 
+int standard_encrypt(void * message_buf, void * key_buf, void * ciphertext_buf, size_t nbytes) {
+	size_t idx = 0;
+	
+	while (idx < nbytes) {
+		((char *)ciphertext_buf)[idx] = ((char *)message_buf)[idx] ^ ((char *)key_buf)[idx];
+		idx += 1;
+	}
+
+	return 0;
+}
+
+int standard_decrypt(void * ciphertext_buf, void * key_buf, void * message_buf, size_t nbytes) {
+	size_t idx = 0;
+	
+	while (idx < nbytes) {
+		((char *)message_buf)[idx] = ((char *)ciphertext_buf)[idx] ^ ((char *)key_buf)[idx];
+		idx += 1;
+	}
+
+	return 0;
+}
+
 // Points addr to a buffer initialized with random generated data
 // uses system-specific entropy to seed pseudo-number generator
 int gen1_entropy(char ** addr, const size_t size) {
@@ -60,50 +82,6 @@ int gen1_entropy(char ** addr, const size_t size) {
 	}
 
 	arc4random_buf(n_addr, size);
-
-	(*addr) = n_addr;
-	return 0;
-}
-
-// TODO: Benchmark this...
-// We are assuming nbytes % 16 = 0 for now
-int gen2_entropy(char ** addr, const size_t nbytes) {
-	void * n_addr = 0x0;
-
-	n_addr = mmap(0, nbytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-	if (n_addr == (void *)(-1)) {
-		return errno;
-	}
-
-	//size_t bytes = 0;
-	//while (bytes < nbytes) {
-	//	int8x16_t * current_chunk = &(n_addr[bytes]); 
-	//	int8x16_t nth_chunk128_addr = vld1q_s8(current_chunk);
-
-	//	getentropy(&nth_chunk128_addr, sizeof(int8x16_t));
-	//	int8_t * foo = (int8_t *)(&nth_chunk128_addr);
-
-	//	foo[0x0] = foo[0x0] % 26;
-	//	foo[0x1] = foo[0x1] % 26;
-	//	foo[0x2] = foo[0x2] % 26;
-	//	foo[0x3] = foo[0x3] % 26;
-	//	foo[0x4] = foo[0x4] % 26;
-	//	foo[0x5] = foo[0x5] % 26;
-	//	foo[0x6] = foo[0x6] % 26;
-	//	foo[0x7] = foo[0x7] % 26;
-	//	foo[0x8] = foo[0x8] % 26;
-	//	foo[0x9] = foo[0x9] % 26;
-	//	foo[0xA] = foo[0xA] % 26;
-	//	foo[0xB] = foo[0xB] % 26;
-	//	foo[0xC] = foo[0xC] % 26;
-	//	foo[0xD] = foo[0xD] % 26;
-	//	foo[0xE] = foo[0xE] % 26;
-	//	foo[0xF] = foo[0xF] % 26;
-
-	//	vst1q_s8(current_chunk, nth_chunk128_addr);
-
-	//	bytes += sizeof(int8x16_t); // 16 bytes since a SIMD register fits v128 (bits)
-	//}
 
 	(*addr) = n_addr;
 	return 0;
