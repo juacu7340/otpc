@@ -1,5 +1,7 @@
 #include "otpc.h"
 
+#include <stdio.h>
+
 #include <stdlib.h> // arc4random family
 #include <stdarg.h>
 #include <unistd.h>
@@ -71,120 +73,94 @@ int standard_decrypt(void * ciphertext_buf, void * key_buf, void * message_buf, 
 	return 0;
 }
 
-// Points addr to a buffer initialized with random generated data
-// uses system-specific entropy to seed pseudo-number generator
-int gen1_entropy(char ** addr, const size_t size) {
-	char * n_addr = 0x0;
+#define IFRET(exp, uv)\
+    do {\
+		if (exp == uv) {\
+			return errno;\
+		}\
+    } while (0)
 
-	n_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-	if (n_addr == (void *)(-1)) {
-		return errno;
-	}
+int otpc_encrypt(const char * in_message_path, const char * out_key_path, const char * out_ciphertext_path) {
+	int message_fd = open(in_message_path, O_RDONLY, 0);
+	IFRET(message_fd, -1);
 
-	arc4random_buf(n_addr, size);
+	int key_fd = open(out_key_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	IFRET(key_fd, -1);
 
-	(*addr) = n_addr;
+	int ciphertext_fd = open(out_ciphertext_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	IFRET(ciphertext_fd, -1);
+
+	struct stat message_fstat;
+	IFRET(fstat(message_fd, &message_fstat), -1);
+
+	size_t nbytes = message_fstat.st_size;
+
+	IFRET(ftruncate(key_fd, nbytes),-1);
+	IFRET(ftruncate(ciphertext_fd, nbytes),-1);
+
+	void * message = mmap(0, nbytes, PROT_READ, MAP_PRIVATE, message_fd, 0);
+	IFRET(message, (void *)(-1));
+
+	void * key = mmap(0, nbytes, PROT_WRITE | PROT_READ, MAP_SHARED, key_fd, 0);
+	IFRET(key, (void *)(-1));
+
+	void * ciphertext = mmap(0, nbytes, PROT_WRITE | PROT_READ, MAP_SHARED, ciphertext_fd, 0);
+	IFRET(ciphertext, (void *)(-1));
+
+	arc4random_buf(key, nbytes);
+	neon_encrypt(message, key, ciphertext, nbytes);
+
+	msync(ciphertext, nbytes, MS_SYNC);
+	msync(key, nbytes, MS_SYNC);
+
+	munmap(ciphertext, nbytes);
+	munmap(key, nbytes);
+	munmap(message, nbytes);
+
+	close(message_fd);
+	close(key_fd);
+	close(ciphertext_fd);
+
 	return 0;
 }
 
-int otpc_encrypt(const char * message_path, const char * key_path, const char * ciphertext_path,
-	int (*entropy_fn)(char **, const size_t)) {
+int otpc_decrypt(const char * in_ciphertext_path, const char * in_key_path, const char * out_message_path) {
+	int ciphertext_fd = open(in_ciphertext_path, O_RDONLY, 0);
+	IFRET(ciphertext_fd, -1);
 
-	//if (check_null(4, message_path, key_path, ciphertext_path, entropy_fn) == 0) {
-	//	return -1;
-	//}
+	int key_fd = open(in_key_path, O_RDONLY, 0);
+	IFRET(key_fd, -1);
 
-	// TODO: measure performance difference between fopen() built-in buffered IO
-	// versus open() non-buffered IO
+	int message_fd = open(out_message_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+	IFRET(message_fd, -1);
 
-	mode_t proc_mask = umask(0066); // Might be too restrictive...
+	struct stat ciphertext_fstat;
+	IFRET(fstat(ciphertext_fd, &ciphertext_fstat), -1);
 
-	mode_t r_mode = S_IRUSR; // Read permissions 
-	mode_t w_mode = r_mode | S_IWUSR;
+	size_t nbytes = ciphertext_fstat.st_size;
 
-	int message_fd = open(message_path, O_RDONLY | O_CREAT, r_mode);
+	IFRET(ftruncate(message_fd, nbytes),-1);
 
-	if (message_fd == -1) {
-		// Error (check errno)
-		goto encrypt_return;
-	}
+	void * ciphertext = mmap(0, nbytes, PROT_READ, MAP_PRIVATE, ciphertext_fd, 0);
+	IFRET(ciphertext, (void *)(-1));
 
-	int key_fd = open(key_path, O_WRONLY | O_CREAT, w_mode);
+	void * key = mmap(0, nbytes, PROT_READ, MAP_PRIVATE, key_fd, 0);
+	IFRET(key, (void *)(-1));
 
-	if (key_fd == -1) {
-		// Error (check errno)
-		goto encrypt_cleanup_message_fd;
-	}
+	void * message = mmap(0, nbytes, PROT_WRITE, MAP_SHARED, message_fd, 0);
+	IFRET(message, (void *)(-1));
 
-	int ciphertext_fd = open(ciphertext_path, O_WRONLY | O_CREAT, w_mode);
+	neon_decrypt(ciphertext, key, message, nbytes);
 
-	if (ciphertext_fd == -1) {
-		// Error (check errno)
-		goto encrypt_cleanup_message_fd;
-	}
+	msync(message, nbytes, MS_SYNC);
 
+	munmap(ciphertext, nbytes);
+	munmap(key, nbytes);
+	munmap(message, nbytes);
 
-	struct stat message_stat;
-	if (fstat(message_fd, &message_stat) == -1) {
-		// Error (check errno)
-		goto encrypt_cleanup_message_fd;
-	}
-
-	size_t message_size = message_stat.st_size; // Input file size, in bytes
-	size_t key_size, ciphertext_size; // Output file sizes, in bytes
-	 
-	// Output file sizes are the same as input file size, in bytes
-	key_size = ciphertext_size = message_size;
-
-	char * message_mmap = mmap(0, message_size, PROT_READ, MAP_PRIVATE, message_fd, 0);
-	
-	if (message_mmap == (void *)(-1)) {
-		// Error (check errno)
-		goto encrypt_cleanup;
-	}
-
-encrypt_cleanup:
-
-encrypt_cleanup_mmap:
-	munmap(message_mmap, message_size);
-
-encrypt_cleanup_fd:
-
-encrypt_cleanup_ciphertext_fd:
 	close(ciphertext_fd);
-encrypt_cleanup_key_fd:
 	close(key_fd);
-encrypt_cleanup_message_fd:
 	close(message_fd);
 
-	// Restore original umask mode
-	umask(proc_mask);
-encrypt_return:
 	return 0;
-}
-
-int otpc_decrypt(/**/) {
-	return 0;
-}
-
-// Checks if the given arguments are not null
-// Returns 0 if at least one argument is null, 1 otherwise
-int check_null(size_t argc, ...) {
-	va_list args;
-	va_start(args, argc);
-
-	int result = 1;
-	int idx = 0;
-
-	while (idx < argc) {
-		void * ptr = va_arg(args, void *);
-		if (ptr == 0) {
-			result = 0;
-			break;
-		}
-		idx = idx + 1;
-	}
-
-	va_end(args);
-	return result;
 }
