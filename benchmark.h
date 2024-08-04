@@ -10,4 +10,6 @@
 		elapsed_time = end_time - start_time;\
 		elapset_time_ms = (double)elapsed_time * 1000.0 / CLOCKS_PER_SEC;\
     } while (0)
+
+extern void to_csv(const char * csv_path, const char * key, double value);
 #endif

@@ -109,6 +109,7 @@ int otpc_encrypt(const char * in_message_path, const char * out_key_path, const 
 
 	arc4random_buf(key, nbytes);
 	neon_encrypt(message, key, ciphertext, nbytes);
+	//standard_encrypt(message, key, ciphertext, nbytes);
 
 	msync(ciphertext, nbytes, MS_SYNC);
 	msync(key, nbytes, MS_SYNC);
@@ -151,6 +152,7 @@ int otpc_decrypt(const char * in_ciphertext_path, const char * in_key_path, cons
 	IFRET(message, (void *)(-1));
 
 	neon_decrypt(ciphertext, key, message, nbytes);
+	//standard_decrypt(ciphertext, key, message, nbytes);
 
 	msync(message, nbytes, MS_SYNC);
 
